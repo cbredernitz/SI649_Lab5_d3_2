@@ -1,0 +1,253 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <title>Lab-5</title>
+    <script src="https://d3js.org/d3.v4.min.js"></script>
+    <!--optional color scales, you can specify your own color scale-->
+    <script src="https://d3js.org/d3-scale-chromatic.v1.min.js"></script>
+
+</head>
+<body>
+    <div id="chart"></div>
+    <script>
+
+//chart dimensions
+w = 900
+h = 500
+margin = {top: 50, right: 20, bottom: 100, left: 40}
+width = w - margin.left - margin.right
+height = h - margin.top - margin.bottom
+
+svg = d3.select("body")
+    .append("svg")
+    .attr("width", w)
+    .attr("height", h)
+    .attr("id", "chart")
+    .append("g")
+    .attr("transform", "translate(" + margin.left + "," + margin.top + ")")
+
+svg.append("g")
+    .attr("class", "x_axis")
+    .attr('id', 'x_axis_group')
+    .attr("transform", "translate(0," + height + ")")
+
+// create infobox
+infobox = d3.select("body")
+    .append("div")
+    .style("margin", "1em")
+    .style("background-color", "#ddd")
+    .style("padding", "1em")
+    .style("height", "7em")
+    .style("width", "15em")
+    .html("Director: " + "<br>" + "Movie Count: " + "<br>" + "Avg. IMDB Rating: " + "<br>" + "Avg. Production Budget: ")
+
+//create scales
+x = d3.scaleBand()
+    .range([0, width])
+    .paddingInner(0.1)
+
+y = d3.scaleLinear()
+    .domain([0, 10])
+    .range([height, 0])
+
+//default transition settings
+t = d3.transition()
+    .duration(3000)
+
+function drawBarsandXAxis(data) {
+    d3.select('#x_axis_group')
+        .call(d3.axisBottom(x))
+    d3.select('y_axis_group')
+        .call(d3.axisLeft(y))
+
+    x.domain(data.map((d) => d.key))
+
+    // color sequence
+    var red = d3.scaleSequential(d3.interpolateReds).domain([0, 200000000]);
+
+    svg.select("g.x_axis")
+        .call(d3.axisBottom(x))
+        .selectAll("text")
+            .style("text-anchor", "end")
+            .attr("dx", "-.8em")
+            .attr("dy", ".15em")
+            .attr("transform", "rotate(-65)")
+
+    bars = svg.selectAll("rect.bar")
+        .data(data, (d) => d.key);
+
+    bars
+      .enter()
+      .append("rect")
+      .attr("class", "bar")
+      .attr("y", (d) => y(d.Average_IMDB))
+      .attr("height", (d) => height - y(d.Average_IMDB))
+      .attr("x", (d) => x(d.key))
+      .attr("width", x.bandwidth())
+      .attr("fill", function(f) { return red(f.Average_Budget); });
+
+    //EXIT (elements to be removed)
+    bars.exit()
+      .transition(t)
+        .attr("fill", "red")
+        .attr("width", 0)
+        .remove()
+
+    //UPDATE (elements to be updated)
+    bars
+      .transition(t)
+        .attr("fill", function(f) { return red(f.Average_Budget); })
+        .attr("y", (d) => y(d.Average_IMDB))
+        .attr("height", (d) => height - y(d.Average_IMDB))
+        .attr("x", (d) => x(d.key))
+        .attr("width", x.bandwidth())
+
+    // Mouseover and Mouseout functionality
+    svg.selectAll("rect.bar")
+        .on("mouseover", (d) => infobox.html("Director: " + d.key + "<br>" + "Movie Count: " + d.Movie_Count + "<br>" + "Avg. IMDB Rating: " + d.Average_IMDB + "<br>" + "Avg. Production Budget: " + d.Average_Budget))
+        .on("mouseout", (d) => infobox.html("Director: " + "<br>" + "Movie Count: " + "<br>" + "Avg. IMDB Rating: " + "<br>" + "Avg. Production Budget: "))
+};
+
+// adding the x and y axis
+function addScales() {
+    svg.append("g")
+        .attr("class", "x_axis")
+        .attr("transform", "translate(0," + height + ")")
+        .call(d3.axisBottom(x))
+
+    svg.append("g")
+        .attr("class", "y_axis")
+        .attr('id', 'y_axis_group')
+        .call(d3.axisLeft(y))
+};
+
+function sortByField(data, fieldName){
+    data.sort(function(a, b){
+        return a[fieldName]-b[fieldName];
+    });
+};
+
+//  sorting the bars
+function sortBars() {
+    var valueMapping = {"Director Name" : "Director",
+                        "Average IMDB Rating" : "Average_IMDB",
+                        "Average Production Budget" : "Average_Budget",
+                        "Movie Count" : "Movie_Count"}
+
+    var selecting = d3.select("#sorting1")
+      .node().value;
+
+    var key = valueMapping[selecting]
+    sortByField(director, key)
+    drawBarsandXAxis(director)
+};
+
+function filterGenre() {
+    var selectGenre = d3.select("#sortingGenre")
+        .node().value;
+
+
+    var result = []
+    for (ind of director) {
+        for (genre of ind.values) {
+            if (genre["Major Genre"] == selectGenre) {
+                result.push(ind)
+            }
+        };
+    };
+    drawBarsandXAxis(result);
+};
+
+//  Creates the sorting option
+var select = d3.select('body')
+  .append('select')
+    .attr('class','select')
+    .attr("id", "sorting1")
+
+d3.select('body')
+    .append('button')
+      .attr("type", "button")
+      .attr("id", "sortingbutton")
+      .attr("onclick", "sortBars()")
+      .text("Sort Bars")
+
+select.selectAll("option")
+    .data(["Director Name",
+        "Average IMDB Rating",
+        "Average Production Budget",
+        "Movie Count"])
+    .enter()
+    .append("option")
+    .attr("value", function (d) {
+        return d
+    })
+    .text(function (d) {
+        return d
+    });
+
+// creating the genre button
+function createGenreSort(genreList1) {
+    var select2 = d3.select('body')
+      .append('select')
+        .attr('class','select')
+        .attr("id", "sortingGenre")
+
+    d3.select('body')
+        .append('button')
+          .attr("type", "button")
+          .attr("id", "sortingGenreButton")
+          .attr("onclick", "filterGenre()")
+          .text("Select A Genre")
+
+    select2.selectAll("option")
+      .data(genreList1)
+      .enter()
+      .append("option")
+      .attr("value", function (d) {
+          return d
+      })
+      .text(function (d) {
+          return d
+  });
+};
+var data = d3.json("./movies_lab5.json", function(error, data) {
+    if (error) throw error;
+
+    var Director = d3.nest()
+        .key(function(d) { return d.Director; })
+        .entries(data);
+
+    for (i of Director) {
+        i["Average_IMDB"] = d3.mean(i['values'], (e) => e["IMDB Rating"]);
+        i["Average_Budget"] = d3.mean(i['values'], (e) => e["Production Budget"]);
+        i["Movie_Count"] = i['values'].length
+    }
+    console.log(Director)
+
+    var genreList = []
+        for (val of Director) {
+            for (genre of val.values) {
+                if (genre["Major Genre"] == "") {
+                    genreList.push("No Genre")
+                }
+                else {
+                    genreList.push(genre["Major Genre"])
+                };
+            };
+        };
+    var uniqueGenre = genreList.filter(function(elem, pos) {
+      return genreList.indexOf(elem) == pos;
+    });
+
+    // Creating the bars
+    window.director = Director
+    window.genreList = uniqueGenre
+    addScales()
+    drawBarsandXAxis(director)
+    createGenreSort(uniqueGenre)
+});
+
+    </script>
+</body>
+</html>
